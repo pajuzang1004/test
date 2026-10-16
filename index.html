@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>외부 웹페이지 - 구글 시트 연동</title>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; max-width: 500px; margin: 30px auto; padding: 15px; }
+    .input-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef; }
+    input { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f1f3f4; }
+  </style>
+</head>
+<body>
+
+  <h3>🌐 외부 웹페이지 ↔ 구글 시트 연동</h3>
+
+  <div class="input-box">
+    <input type="text" id="nameInput" placeholder="이름 또는 종목 입력">
+    <input type="text" id="memoInput" placeholder="메모 또는 수치 입력">
+    <button id="saveBtn" onclick="submitData()">시트에 저장하기 (POST)</button>
+  </div>
+
+  <h4>📊 시트 저장 목록 <button onclick="loadData()" style="width:auto; padding:4px 8px; font-size:12px;">새로고침</button></h4>
+  <div id="tableArea">데이터를 불러오는 중...</div>
+
+  <script>
+    // ★ 배포한 Apps Script의 웹 앱 URL을 아래 따옴표 안에 붙여넣으세요 ★
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwIRcorND0ajU4wrEvh78rx3jNcF7aTKEfX0mC-s6Ht0jOeNUYEGxe8BLOIa-TmsRsA/exec';
+
+    // 페이지 열릴 때 자동으로 데이터 불러오기
+    window.onload = function() {
+      loadData();
+    };
+
+    // 1. [불러오기] GET 요청으로 시트 데이터 가져오기
+    async function loadData() {
+      const area = document.getElementById('tableArea');
+      try {
+        const response = await fetch(GAS_URL);
+        const data = await response.json();
+
+        if (data.length === 0) {
+          area.innerHTML = '<p>저장된 데이터가 없습니다.</p>';
+          return;
+        }
+
+        let html = '<table>';
+        for (let i = 0; i < data.length; i++) {
+          html += '<tr>';
+          for (let j = 0; j < data[i].length; j++) {
+            html += (i === 0) ? `<th>${data[i][j]}</th>` : `<td>${data[i][j]}</td>`;
+          }
+          html += '</tr>';
+        }
+        html += '</table>';
+        area.innerHTML = html;
+
+      } catch (error) {
+        area.innerHTML = '<p style="color:red;">데이터를 불러오지 못했습니다. URL과 배포 권한(모든 사용자)을 확인하세요.</p>';
+        console.error('로드 에러:', error);
+      }
+    }
+
+    // 2. [저장하기] POST 요청으로 시트에 데이터 보내기
+    async function submitData() {
+      const name = document.getElementById('nameInput').value.trim();
+      const memo = document.getElementById('memoInput').value.trim();
+      const btn = document.getElementById('saveBtn');
+
+      if (!name || !memo) {
+        alert('모든 칸을 입력해 주세요.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = '저장 중...';
+
+      try {
+        // ★ 핵심 팁: Content-Type을 따로 지정하지 않고(기본값 text/plain) 문자열로 보내야
+        // 구글 서버의 CORS(교차 출처 차단) 사전 검사(Preflight) 에러에 걸리지 않고 잘 전송됩니다.
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ name: name, memo: memo })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          document.getElementById('nameInput').value = '';
+          document.getElementById('memoInput').value = '';
+          await loadData(); // 저장 성공 후 목록 새로고침
+        } else {
+          alert('저장 오류: ' + result.message);
+        }
+      } catch (error) {
+        alert('통신 중 오류가 발생했습니다.');
+        console.error('저장 에러:', error);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '시트에 저장하기 (POST)';
+      }
+    }
+  </script>
+
+</body>
+</html>
